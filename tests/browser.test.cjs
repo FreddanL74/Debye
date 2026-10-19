@@ -20,6 +20,20 @@ test('browser: full synthetic fit, exports, WC image, raw imports, error handlin
   const csvDL=page.waitForEvent('download');await page.click('#exportResidual');const csv=await csvDL;assert.match(fs.readFileSync(await csv.path(),'utf8'),/NaN=masked/);
   await page.click('#wcExample');await page.waitForFunction(()=>!DebyeLab.state.busy);assert.match(await page.locator('#dataWarning').textContent(),/färglagd/);assert.equal(await page.evaluate(()=>DebyeLab.state.image.originalWidth),2048);assert.equal(await page.evaluate(()=>DebyeLab.state.image.bin),4);assert.equal(+await page.locator('#E').inputValue(),450000);assert.equal(+await page.locator('#nu').inputValue(),.25);assert.equal(await page.locator('#lambda').getAttribute('min'),'.17');assert.equal(await page.locator('#lambda').getAttribute('max'),'.20');
   await page.click('#findCenter');await page.waitForFunction(()=>!DebyeLab.state.busy);const cx=+await page.locator('#cx').inputValue(),cy=+await page.locator('#cy').inputValue();assert.ok(Math.abs(cx-1039.2)<2);assert.ok(Math.abs(cy-1012.6)<2);console.log('WC center in original pixels:',cx,cy);
+  // Slider input changes the numerical model and overlay without a separate calculate click.
+  const base=await page.evaluate(()=>({sample:DebyeLab.state.image.data[10000],radius:DebyeLab.state.last.fit.rmse}));
+  for(const [key,value]of [['lambda',.185],['distance',380],['beta',.01],['cx',1041.2],['cy',1014.6]]){
+    const before=await page.evaluate(()=>DebyeLab.state.last.revision);
+    await page.locator('#'+key+'Slider').evaluate((el,v)=>{el.value=String(v);el.dispatchEvent(new Event('input',{bubbles:true}));},value);
+    await page.waitForFunction(rev=>DebyeLab.state.last&&DebyeLab.state.last.revision>rev,before);
+    assert.ok(Math.abs(+await page.locator('#'+key).inputValue()-value)<1e-7);
+    const current=await page.evaluate(k=>({value:DebyeLab.uiParams()[k],computed:DebyeLab.state.last.p[k]}),key);
+    assert.equal(current.value,value);if(key==='beta')assert.equal(current.computed,value);
+  }
+  assert.equal(await page.evaluate(()=>DebyeLab.state.image.data[10000]),base.sample);
+  assert.notEqual(await page.evaluate(()=>DebyeLab.state.last.fit.rmse),base.radius);
+  await page.locator('#cx').fill('1042.3');await page.locator('#cx').dispatchEvent('change');
+  await page.waitForFunction(()=>document.getElementById('cxSlider').value==='1042.3'&&DebyeLab.state.last);
   // Numeric import retains intensity units and NaN instead of converting through an 8-bit canvas.
   await page.click('#synthetic');await page.waitForFunction(()=>!DebyeLab.state.busy);
   const matrix=await page.evaluate(()=>{const im=DebyeLab.state.image;const rows=[];for(let y=0;y<im.height;y++)rows.push(Array.from(im.data.subarray(y*im.width,(y+1)*im.width),(v,i)=>y===0&&i===0?'NaN':v*10000).join(','));return rows.join('\n');});

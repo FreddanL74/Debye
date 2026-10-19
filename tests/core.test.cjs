@@ -60,3 +60,15 @@ test('TIFF decodes 16-bit little/big endian and 32-bit float without canvas quan
 test('wavelength fit respects user calibration bounds',async()=>{
  const p={...params,r:1,stress:0,lambda:.185,lambdaBounds:[.17,.2]},f=fixture(p),result=await D.optimize(f.image,f.rings,{...p,lambda:.18},['lambda']);near(result.p.lambda,.185,.0001);assert.ok(result.p.lambda>=.17&&result.p.lambda<=.2);assert.throws(()=>D.modelTables(f.rings,{...p,lambda:.16}),/intervallet/);
 });
+
+test('WC beta preserves (001) and shifts outer rings by the original radial formula',()=>{
+ const c=D.parseCIF(D.WC_CIF),rings=D.reflections(c,11),p={...params,lambda:.2,beta:0,betaQref:2*Math.PI/c.cell[2]},first=rings[0],outer=rings.find(r=>r.q>5);
+ const r0=D.ringRadius(first,p),rOuter=D.ringRadius(outer,p);
+ for(const beta of [-.02,.02]){near(D.ringRadius(first,{...p,beta}),r0);near(D.ringRadius(outer,{...p,beta}),rOuter*(1+beta*((outer.q/p.betaQref)**2-1)));}
+ const t0=D.modelTables(rings,p),t1=D.modelTables(rings,{...p,beta:.02});near(t0.tables[0].centers[0],t1.tables[0].centers[0]);assert.ok(t1.tables[3].centers[0]>t0.tables[3].centers[0]);
+ assert.throws(()=>D.ringRadius(outer,{...p,beta:.05}),/β/);assert.throws(()=>D.ringRadius(outer,{...p,beta:-.04,betaQref:.01}),/ringradie/);
+});
+test('changing centre translates the calculated signal without modifying experimental data',()=>{
+ const f=fixture(),p=params,model=D.modelTables(f.rings,p),dx=2,dy=-3;
+ for(const [x,y]of [[30,45],[90,65],[72,27]])near(D.intensity(x,y,p,model),D.intensity(x+dx,y+dy,{...p,cx:p.cx+dx,cy:p.cy+dy},model));
+});

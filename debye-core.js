@@ -167,6 +167,16 @@ function validateParams(p){
   if(p.lambdaBounds&&(!Array.isArray(p.lambdaBounds)||p.lambdaBounds.length!==2||!p.lambdaBounds.every(Number.isFinite)||p.lambdaBounds[0]>=p.lambdaBounds[1]||p.lambda<p.lambdaBounds[0]||p.lambda>p.lambdaBounds[1]))throw Error('Våglängden ligger utanför det angivna intervallet.');
   if(Math.abs(p.stress/p.E)>.04)throw Error('|σ/E| får vara högst 0,04 i denna linjärelastiska modell.');
 }
+// Empirical correction from the WC viewer, anchored at the crystal's (001) q.
+// q is the unstrained reflection q, so beta does not change the stress law.
+function ringRadius(ring,p,theta=Math.asin(p.lambda/(2*ring.d))){
+  const beta=p.beta??0;
+  if(!Number.isFinite(beta)||Math.abs(beta)>.04)throw Error('β måste ligga mellan −0,04 och 0,04.');
+  if(beta!==0&&!(Number.isFinite(p.betaQref)&&p.betaQref>0))throw Error('Referens-q för β saknas.');
+  const factor=beta===0?1:1+beta*((ring.q/p.betaQref)**2-1);
+  if(!(factor>0))throw Error('β ger en ogiltig ringradie. Minska |β| eller q-max.');
+  return p.distance*Math.tan(2*theta)*factor;
+}
 function modelTables(rings,p,az=180){
   validateParams(p);
   const tables=[];let max=0;
@@ -175,7 +185,7 @@ function modelTables(rings,p,az=180){
     const centers=new Float64Array(az+1),strengths=new Float64Array(az+1);
     for(let j=0;j<az;j++){
       const phi=2*PI*j/az,th=thetaStress(ring,phi,p),tt=2*th;
-      centers[j]=tt/RAD;
+      centers[j]=Math.atan2(ringRadius(ring,p,th),p.distance)/RAD;
       // Powder Lorentz x polarization x planar-detector solid-angle conversion.
       const pol=p.polarized?1-Math.sin(tt)**2*Math.cos(phi)**2:(1+Math.cos(tt)**2)/2;
       strengths[j]=ring.strength*pol*texture(ring,phi,p)/(Math.sin(th)*Math.sin(tt)) /(Math.tan(tt)/Math.cos(tt)**2);
@@ -352,6 +362,6 @@ N 0.5 0 0
 N 0 0.5 0
 N 0 0 0.5
 `;
-const api={RAD,clamp,parseCIF,tokenizeCIF,symmetryOperation,cellBasis,reciprocalVector,reflections,formFactor,thetaStress,marchDollase,texture,modelTables,intensity,samples,scaleModel,evaluate,render,findCenter,optimize,parseMatrix,readTIFF,validateParams,WC_CIF,TIN_CIF};
+const api={RAD,clamp,parseCIF,tokenizeCIF,symmetryOperation,cellBasis,reciprocalVector,reflections,formFactor,thetaStress,ringRadius,marchDollase,texture,modelTables,intensity,samples,scaleModel,evaluate,render,findCenter,optimize,parseMatrix,readTIFF,validateParams,WC_CIF,TIN_CIF};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.Debye=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

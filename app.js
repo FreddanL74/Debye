@@ -1,13 +1,23 @@
 /* UI for Debye Lab. User file contents are data, never HTML or code. */
 'use strict';
 const D=window.Debye,$=id=>document.getElementById(id);
-const fields=['cx','cy','pixel','distance','lambda','r','textureAngle','stress','stressAngle','E','nu','fwhm','qmax','maskInner','maskOuter'];
+const fields=['cx','cy','pixel','distance','lambda','beta','r','textureAngle','stress','stressAngle','E','nu','fwhm','qmax','maskInner','maskOuter'];
 let image=null,crystal=null,cifText=D.TIN_CIF,cifName='TiN (idealiserad full cell)',last=null,ringsCache=null,busy=false,cancelled=false,renderTimer=null,revision=0,fitRecord=null;
-const defaults={cx:191.5,cy:191.5,pixel:.4,distance:240,lambda:12.3984198433/80,r:1,textureAngle:90,stress:0,stressAngle:0,E:450000,nu:.2,fwhm:.06,qmax:9,maskInner:18,maskOuter:270};
+const defaults={cx:191.5,cy:191.5,pixel:.4,distance:240,beta:0,lambda:12.3984198433/80,r:1,textureAngle:90,stress:0,stressAngle:0,E:450000,nu:.2,fwhm:.06,qmax:9,maskInner:18,maskOuter:270};
 function status(s){$('status').textContent=s;}
 function error(e){status('Fel: '+(e.message||String(e)));console.error(e);}
-function setFields(p){for(const k of fields)if(p[k]!==undefined)$(k).value=String(+p[k].toFixed(7));}
-function uiParams(){const p=Object.fromEntries(fields.map(k=>[k,+$(k).value]));for(const k of fields)if($(k).value.trim()==='')throw Error('Fyll i '+k+'.');p.axis=['axisH','axisK','axisL'].map(k=>+$(k).value);if(p.axis.some(v=>!Number.isInteger(v))||!Math.hypot(...p.axis))throw Error('Ange en heltalsriktning skild från [0 0 0].');p.lambdaBounds=[+$('lambda').min,+$('lambda').max];p.background=$('background').checked;p.polarized=$('polarized').checked;D.validateParams(p);return p;}
+function syncSliders(){
+  for(const slider of document.querySelectorAll('[data-slider]')){
+    const key=slider.dataset.slider,input=$(key),value=Number(input.value);
+    if(key==='cx'||key==='cy'){slider.min=0;slider.max=(key==='cx'?image?.originalWidth:image?.originalHeight)-1||511;}
+    if(key==='lambda'){const wc=+input.min===.17&&+input.max===.2;slider.min=wc?input.min:Math.min(.05,value);slider.max=wc?input.max:Math.max(.6,value);}
+    if(key==='distance')slider.max=Math.max(2000,Math.ceil(value/1000)*1000);
+    slider.value=input.value;
+    slider.setAttribute('aria-valuetext',input.value+(key==='lambda'?' Å':key==='distance'?' mm':key==='beta'?'':' pixlar'));
+  }
+}
+function setFields(p){for(const k of fields)if(p[k]!==undefined)$(k).value=String(+p[k].toFixed(7));syncSliders();}
+function uiParams(){const p=Object.fromEntries(fields.map(k=>[k,+$(k).value]));for(const k of fields)if($(k).value.trim()==='')throw Error('Fyll i '+k+'.');p.axis=['axisH','axisK','axisL'].map(k=>+$(k).value);if(p.axis.some(v=>!Number.isInteger(v))||!Math.hypot(...p.axis))throw Error('Ange en heltalsriktning skild från [0 0 0].');p.betaQref=2*Math.PI*Math.hypot(...D.reciprocalVector(crystal,[0,0,1]));p.lambdaBounds=[+$('lambda').min,+$('lambda').max];p.background=$('background').checked;p.polarized=$('polarized').checked;D.validateParams(p);return p;}
 function internalParams(p=uiParams()){
   const bin=image?.bin||1,offset=(bin-1)/2;
   return {...p,cx:(p.cx-offset)/bin,cy:(p.cy-offset)/bin,pixel:p.pixel*bin,maskInner:p.maskInner/bin,maskOuter:p.maskOuter/bin};
@@ -16,7 +26,7 @@ function externalParams(p){const bin=image?.bin||1,offset=(bin-1)/2;return {...p
 function getRings(p){const key=JSON.stringify([p.qmax,p.axis]);if(!ringsCache||ringsCache.key!==key){const rings=D.reflections(crystal,p.qmax,p.axis);if(!rings.length)throw Error('Inga reflexer inom valt q-intervall.');ringsCache={key,rings};}return ringsCache.rings;}
 function loadStructure(text,name){const c=D.parseCIF(text);crystal=c;cifText=text;cifName=name;ringsCache=null;const elements=new Set(c.atoms.map(a=>a.el)),isWC=elements.size===2&&elements.has('W')&&elements.has('C');$('lambda').min=isWC?'.17':'.01';$('lambda').max=isWC?'.20':'5';$('lambdaHint').textContent=isWC?'WC: angivet sökintervall 0,17–0,20 Å.':'Ange känd våglängd eller kalibrera med känt avstånd.';if(isWC)setFields({E:450000,nu:.25,lambda:D.clamp(+$('lambda').value,.17,.20)});$('structureInfo').textContent=`${name} · ${c.atoms.length} atomer i cellen · a=${c.cell[0].toFixed(4)}, b=${c.cell[1].toFixed(4)}, c=${c.cell[2].toFixed(4)} Å. ${c.warnings.join(' ')}`;}
 function invalidate(){fitRecord=null;$('fitNotice').textContent='Parametrarna har ändrats. Visade värden är aktuella modellparametrar, inte en ny automatisk anpassning.';last=null;for(const id of ['exportJSON','exportCSV','exportResidual','exportPNG'])$(id).disabled=true;}
-function requestRender(){if(busy)return;revision++;invalidate();clearTimeout(renderTimer);renderTimer=setTimeout(()=>{try{calculate();}catch(e){error(e);}},160);}
+function requestRender(){if(busy)return;syncSliders();revision++;invalidate();if(renderTimer!==null)return;renderTimer=setTimeout(()=>{renderTimer=null;try{calculate();}catch(e){error(e);}},60);}
 function reduceImage(raw){
   const {width,height,data}=raw;
   if(!Number.isInteger(width)||!Number.isInteger(height)||width<8||height<8||width*height>17000000||data.length!==width*height)throw Error('Bilden måste ha minst 8 × 8 och högst 17 miljoner pixlar.');
@@ -42,10 +52,9 @@ function calculate(){
   const p=internalParams(),rings=getRings(p);status('Beräknar experiment, modell och differens…');
   const result=D.render(image,rings,p);
   if(!Number.isFinite(result.fit.rmse)||result.fit.n<30)throw Error('För få giltiga pixlar i masken.');
-  if(!result.fit.a)throw Error('Modellen saknar överlappande signal. Kontrollera CIF, λ, avstånd, q-max och mask.');
   last={...result,p,rings,revision};draw();showResults();
   for(const id of ['exportJSON','exportCSV','exportResidual','exportPNG'])$(id).disabled=false;
-  status(`Beräknat · ${rings.length} d-grupper · ${result.fit.n.toLocaleString('sv-SE')} omaskerade pixlar. ${image.qualitative?'Bildjämförelse – ej kvantitativa intensiteter.':''}`);
+  status(`Beräknat · ${rings.length} d-grupper · ${result.fit.n.toLocaleString('sv-SE')} omaskerade pixlar. ${result.fit.a===0?'Ingen positiv intensitetskorrelation: justera geometrin med ringöverlagringen. ':''}${image.qualitative?'Bildjämförelse – ej kvantitativa intensiteter.':''}`);
 }
 function maxData(){let max=0;for(const v of image.data)if(Number.isFinite(v))max=Math.max(max,Math.abs(v));return max||1;}
 function drawArray(id,values,residual=false){
@@ -60,7 +69,7 @@ function drawArray(id,values,residual=false){
 function drawOverlay(){
   const cv=$('overlay');cv.width=image.width;cv.height=image.height;const ctx=cv.getContext('2d'),p=last.p,scale=image.width/512;
   ctx.strokeStyle='#dd4289';ctx.lineWidth=Math.max(.8,scale);ctx.beginPath();ctx.moveTo(p.cx-8*scale,p.cy);ctx.lineTo(p.cx+8*scale,p.cy);ctx.moveTo(p.cx,p.cy-8*scale);ctx.lineTo(p.cx,p.cy+8*scale);ctx.stroke();
-  if($('showRings').checked){ctx.strokeStyle='#06a6b499';ctx.lineWidth=Math.max(.5,.75*scale);for(const r of last.rings){const t=2*Math.asin(p.lambda/(2*r.d)),rad=p.distance*Math.tan(t)/p.pixel;if(!Number.isFinite(rad)||t>=Math.PI/2||rad>Math.hypot(image.width,image.height))continue;ctx.beginPath();ctx.arc(p.cx,p.cy,rad,0,2*Math.PI);ctx.stroke();}}
+  if($('showRings').checked){ctx.strokeStyle='#06a6b499';ctx.lineWidth=Math.max(.5,.75*scale);for(const r of last.rings){const t=2*Math.asin(p.lambda/(2*r.d)),rad=D.ringRadius(r,p,t/2)/p.pixel;if(!Number.isFinite(rad)||t>=Math.PI/2||rad>Math.hypot(image.width,image.height))continue;ctx.beginPath();ctx.arc(p.cx,p.cy,rad,0,2*Math.PI);ctx.stroke();}}
 }
 function radialProfiles(){
   const n=350,p=last.p,rr=Math.max(...[[0,0],[image.width,0],[0,image.height],[image.width,image.height]].map(([x,y])=>Math.hypot(x-p.cx,y-p.cy))),ttmax=Math.atan(rr*p.pixel/p.distance)/D.RAD;
@@ -84,7 +93,7 @@ function showResults(){
   $('results').replaceChildren(...metrics.map(([label,value])=>{const el=document.createElement('div');el.className='metric';const strong=document.createElement('strong'),span=document.createElement('span');strong.textContent=value;span.textContent=label;el.append(strong,span);return el;}));
 }
 function setBusy(value){busy=value;for(const el of document.querySelectorAll('#controls input,#controls select,#controls button,#calculate'))el.disabled=value;$('cancel').disabled=!value;}
-async function runTask(fn){if(busy)return;clearTimeout(renderTimer);cancelled=false;invalidate();setBusy(true);await new Promise(r=>setTimeout(r,20));try{await fn();}catch(e){error(e);}finally{setBusy(false);}}
+async function runTask(fn){if(busy)return;clearTimeout(renderTimer);renderTimer=null;cancelled=false;invalidate();setBusy(true);await new Promise(r=>setTimeout(r,20));try{await fn();}catch(e){error(e);}finally{setBusy(false);}}
 async function fit(keys,label){
   const p=internalParams();if(label==='geometri'){p.stress=0;setFields({stress:0});}
   const rings=getRings(p),start=D.evaluate(D.samples(image,p,10000),rings,p).rwp;
@@ -129,6 +138,9 @@ function download(name,text,type='text/plain'){
   const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 for(const el of document.querySelectorAll('[data-param]'))el.addEventListener('change',requestRender);
+for(const slider of document.querySelectorAll('[data-slider]'))slider.addEventListener('input',()=>{
+  $(slider.dataset.slider).value=slider.value;requestRender();
+});
 $('dataFile').onchange=()=>runTask(()=>loadFile($('dataFile').files[0]));
 $('cifFile').onchange=()=>runTask(async()=>{const f=$('cifFile').files[0];if(!f)return;loadStructure(await f.text(),f.name);calculate();});
 $('imageMode').onchange=()=>{if($('dataFile').files[0])runTask(()=>loadFile($('dataFile').files[0]));};
@@ -139,10 +151,10 @@ $('wcExample').onclick=()=>runTask(async()=>{
   await imageFromURL('examples/wc-experimental.jpg','WC – din inbäddade JPEG','Din WC-bild är färglagd JPEG. Centrum och ringpositioner kan undersökas, men originalintensiteterna saknas: texturvärden är inte kvantitativa.');
   loadStructure(D.WC_CIF,'WC (full cell från gitterparametrarna i din fil)');$('axisH').value=0;$('axisK').value=0;$('axisL').value=1;
   const lambda=.2,d=2.84015,dp=270/Math.tan(2*Math.asin(lambda/(2*d)));
-  setFields({cx:1039.2,cy:1012.6,pixel:.1,distance:dp*.1,lambda,E:450000,nu:.25,fwhm:.025,qmax:11,r:1,stress:0,textureAngle:90,stressAngle:0,maskInner:80,maskOuter:1050});calculate();
+  setFields({cx:1039.2,cy:1012.6,pixel:.1,distance:dp*.1,lambda,beta:0,E:450000,nu:.25,fwhm:.025,qmax:11,r:1,stress:0,textureAngle:90,stressAngle:0,maskInner:80,maskOuter:1050});calculate();
   $('fitNotice').textContent='WC-geometrin är hämtad från din fil. Pixelstorlek 0,1 mm är ett antagande för exemplet: ange detektorns riktiga värde innan du tolkar avståndet i mm.';
 });
-$('calculate').onclick=()=>{try{clearTimeout(renderTimer);calculate();}catch(e){error(e);}};
+$('calculate').onclick=()=>{try{clearTimeout(renderTimer);renderTimer=null;calculate();}catch(e){error(e);}};
 $('findCenter').onclick=()=>runTask(async()=>{
   const p=internalParams(),c=await D.findCenter(image,p,v=>status(`Söker centrum: x=${(v.cx*image.bin+(image.bin-1)/2).toFixed(2)}, y=${(v.cy*image.bin+(image.bin-1)/2).toFixed(2)} px`),()=>cancelled);
   setFields(externalParams({...p,cx:c.cx,cy:c.cy}));calculate();$('fitNotice').textContent='Centrum uppskattat från ringgradienter och 180°-symmetri. Kontrollera krysset mot ringarna; fläckar och asymmetri kan påverka läget.';
