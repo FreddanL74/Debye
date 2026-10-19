@@ -1,0 +1,17 @@
+{
+  "name": "debye-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local diffraction image comparison and exploratory texture/stress fitting",
+  "scripts": {
+    "test": "node --test tests/core.test.cjs",
+    "test:browser": "node --test tests/browser.test.cjs",
+    "start": "python3 -m http.server 8000 --bind 127.0.0.1"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

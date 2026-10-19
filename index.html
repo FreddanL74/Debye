@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="sv">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Debye Lab · experiment och modell</title><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"><script defer src="debye-core.js"></script><script defer src="app.js"></script></head>
+<body>
+<header><div><div class="eyebrow">DEBYE LAB / DIFFRAKTION</div><h1>Från ringar till textur och spänning</h1><p>Experiment → centrum → geometri → CIF → anpassning → differens</p></div><span class="badge">Lokala beräkningar · inga filer laddas upp</span></header>
+<main>
+<aside id="controls">
+<section class="card"><h2><span>01</span> Experiment & struktur</h2>
+<label for="dataFile">Experimentell 2D-data</label><input id="dataFile" type="file" accept=".png,.jpg,.jpeg,.webp,.tif,.tiff,.csv,.txt,.json"><p class="hint">PNG/JPEG, okomprimerad gråskale-TIFF (8/16/32-bit) eller CSV/JSON-matris. NaN maskerar en pixel. CSV: en rad per bildrad, punkt som decimaltecken.</p>
+<label for="imageMode">Tolkning av PNG/JPEG</label><select id="imageMode"><option value="linear">Linjär gråskala / luminans (ingen gammakorrektion)</option><option value="inverted">Inverterad (mörka ringar)</option></select>
+<label for="cifFile">Kristallstruktur (.cif)</label><input id="cifFile" type="file" accept=".cif"><p id="structureInfo" class="hint"></p>
+<div class="buttons"><button id="tinPreset">TiN-struktur</button><button id="wcPreset">WC-struktur</button></div>
+<div class="buttons"><button id="synthetic" class="primary">Syntetiskt TiN-test</button><button id="wcExample">Öppna din WC-bild</button></div>
+<p id="dataInfo" class="hint"></p><p id="dataWarning" class="warning" role="note"></p>
+</section>
+<section class="card"><h2><span>02</span> Centrum & geometri</h2>
+<p class="hint">Koordinater i originalbildens pixlar; x åt höger, y nedåt. Klicka i experimentbilden för att flytta centrum.</p>
+<div class="pair"><label>Centrum x (px)<input id="cx" type="number" step="0.1" value="255.5" data-param></label><label>Centrum y (px)<input id="cy" type="number" step="0.1" value="255.5" data-param></label></div>
+<button id="findCenter">Hitta centrum automatiskt</button>
+<div class="pair"><label>Pixelstorlek (mm)<input id="pixel" type="number" min="0.000001" step="0.001" value="0.2" data-param></label><label>Avstånd (mm)<input id="distance" type="number" min="1" step="0.1" value="240" data-param></label></div>
+<label>Våglängd λ (Å)<input id="lambda" type="number" min="0.01" max="5" step="0.0001" value="0.15498025" data-param></label>
+<p id="lambdaHint" class="hint">Ange känd våglängd eller kalibrera med känt avstånd.</p>
+<label for="geometryFit">Kalibrera (den andra hålls fast)</label><select id="geometryFit"><option value="distance">Avstånd, med känd våglängd</option><option value="lambda">Våglängd, med känt avstånd</option></select>
+<button id="fitGeometry">Anpassa vald geometri</button>
+<p class="hint">Kalibrera mot en känd ospänd referens. Anpassningen sätter σ = 0. λ och avstånd är starkt korrelerade; den här appen anpassar en i taget. Detektorn antas vinkelrät mot strålen.</p>
+</section>
+<section class="card"><h2><span>03</span> Textur & spänning</h2>
+<label>Texturaxel i kristallen [u v w]</label><div class="triple"><input id="axisH" type="number" value="1" step="1" aria-label="u" data-param><input id="axisK" type="number" value="0" step="1" aria-label="v" data-param><input id="axisL" type="number" value="0" step="1" aria-label="w" data-param></div>
+<div class="pair"><label>March–Dollase r<input id="r" type="number" min="0.1" max="10" step="0.01" value="1" data-param></label><label>Texturaxel i bilden (°)<input id="textureAngle" type="number" step="1" value="90" data-param></label></div>
+<div class="pair"><label>Spänning σ (MPa)<input id="stress" type="number" step="10" value="0" data-param></label><label>Spänningsriktning (°)<input id="stressAngle" type="number" step="1" value="0" data-param></label></div>
+<p class="hint">0° = höger, 90° = uppåt, riktningar modulo 180°. Positiv σ = drag. r = 1 betyder ingen textur. Riktningen kan inte bestämmas när σ = 0 respektive r = 1.</p>
+<div class="pair"><label>E (MPa)<input id="E" type="number" min="1" step="1000" value="450000" data-param></label><label>Poissons tal ν<input id="nu" type="number" min="-0.98" max="0.49" step="0.01" value="0.2" data-param></label></div>
+<p class="hint">E och ν måste vara kända för provet. För WC används dina angivna värden E = 450 000 MPa och ν = 0,25. Modellen antar isotrop elasticitet.</p>
+<div class="pair"><label>FWHM i 2θ (°)<input id="fwhm" type="number" min="0.002" max="2" step="0.005" value="0.06" data-param></label><label>Reflexer till q (Å⁻¹)<input id="qmax" type="number" min="0.1" max="20" step="0.1" value="9" data-param></label></div>
+<label class="check"><input id="polarized" type="checkbox" checked data-param> Horisontellt linjärpolariserad stråle</label>
+</section>
+<section class="card"><h2><span>04</span> Mask & anpassning</h2>
+<div class="pair"><label>Inre maskradie (px)<input id="maskInner" type="number" min="0" step="1" value="20" data-param></label><label>Yttre radie (px)<input id="maskOuter" type="number" min="1" step="1" value="360" data-param></label></div>
+<label class="check"><input id="background" type="checkbox" checked data-param> Anpassa konstant bakgrund + positiv skala</label>
+<fieldset><legend>Parametrar vid textur/spänningsanpassning</legend><label class="check"><input type="checkbox" name="fit" value="r" checked> March–Dollase r</label><label class="check"><input type="checkbox" name="fit" value="textureAngle" checked> Texturriktning</label><label class="check"><input type="checkbox" name="fit" value="stress" checked> Spänning σ</label><label class="check"><input type="checkbox" name="fit" value="stressAngle" checked> Spänningsriktning</label><label class="check"><input type="checkbox" name="fit" value="cx" checked> Finjustera centrum x</label><label class="check"><input type="checkbox" name="fit" value="cy" checked> Finjustera centrum y</label><label class="check"><input type="checkbox" name="fit" value="fwhm"> Toppbredd</label></fieldset>
+<button id="fitModel" class="primary">Anpassa textur & spänning</button> <button id="cancel" disabled>Avbryt</button>
+<p class="hint">Lokal minsta-kvadratanpassning med flera riktningsstarter. Kontrollera residualer och prova fler startvärden. Ett minimum är ingen garanti för en unik fysisk lösning.</p>
+</section>
+</aside>
+<div class="workspace">
+<section class="card statusbar"><div><span class="eyebrow">AKTUELL BERÄKNING</span><p id="status" role="status" aria-live="polite">Startar…</p></div><button id="calculate">Beräkna igen</button></section>
+<section class="views">
+<article class="card"><h2>Experiment</h2><div class="canvas-wrap"><canvas id="experiment" width="512" height="512" aria-label="Experimentell intensitet, klicka för centrum"></canvas><canvas id="overlay" width="512" height="512" aria-hidden="true"></canvas></div><p class="hint">Kryss = centrum · cyan = ospända CIF-ringar</p></article>
+<article class="card"><h2>Beräknat</h2><canvas id="calculated" width="512" height="512" aria-label="Beräknad intensitet med anpassad skala och bakgrund"></canvas><p class="hint">Samma färg- och intensitetsskala som experimentet</p></article>
+<article class="card"><h2>Skillnad: experiment − beräknat</h2><canvas id="difference" width="512" height="512" aria-label="Signerad intensitetsdifferens, vitt är noll"></canvas><div class="residual-key"><span>− beräknat för starkt</span><span>0</span><span>+ experiment starkare</span></div><p class="hint">Blått = negativt · vitt = noll · rött = positivt · maskerat = grått. Skalan ändras bara med reglaget nedan.</p></article>
+</section>
+<section class="card display-controls"><label>Bildskala<select id="displayScale"><option value="sqrt">Kvadratrot</option><option value="linear">Linjär</option><option value="log">Logaritmisk</option></select></label><label>Differens ± (% av experimentets max)<input id="residualRange" type="number" min="0.1" max="1000" step="1" value="30"></label><label class="check"><input id="showRings" type="checkbox" checked> Visa referensringar</label><button id="exportJSON">Spara resultat JSON</button><button id="exportCSV">Spara radialprofiler CSV</button><button id="exportResidual">Spara differens CSV</button><button id="exportPNG">Spara differens PNG</button></section>
+<section class="card"><h2>Resultat</h2><div id="results" class="metrics"></div><p id="fitNotice" class="hint">Ingen automatisk anpassning har körts. Visade värden är aktuella modellparametrar.</p><p id="truth" class="hint"></p></section>
+<section class="card"><h2>Radialprofiler · gemensam skala</h2><canvas id="profiles" width="1100" height="300" aria-label="Experimentell och beräknad radialprofil samt residual"></canvas><p class="hint">Svart = experiment · turkos = beräknat · rött = differens. Medelvärden i 2θ-intervall över omaskerade pixlar; azimutberoendet syns i 2D-bilderna.</p></section>
+<details class="card"><summary>Modell, CIF-stöd och vad resultatet betyder</summary><div class="prose"><p>Braggs lag och plan detektor: 2θ = atan(R/L), d = λ/(2 sin θ). CIF:s fullständiga enhetscell och explicita symmetrioperationer ger atompositioner, strukturamplituder och systematiska utsläckningar. Alla heltalsreflexer inom q-max genereras med multipliciteter; [u v w] är en riktning i den direkta kristallbasen.</p><p>Neutrala Cromer–Mann-formfaktorer för C, N, O, Ti och W; isotrop B/U och beläggningsgrad, pulver-Lorentzfaktor, polarisering och plan detektorgeometri ingår. CIF med andra element avvisas. Symmetri måste anges explicit, eller cellen vara deklarerad P1. Endast en fas och ett data-block stöds. Anomal spridning, absorption, anisotropa temperaturfaktorer och kornstatistik ingår inte.</p><p>March–Dollase W(β) = (r² cos²β + sin²β/r)⁻³ᐟ² integreras över rotationer runt spridningsvektorn och samtliga reflexer med samma d. Texturaxeln och belastningsaxeln antas ligga i detektorplanet. Enaxlig isotrop elasticitet: ε = (σ/E)[(1+ν)n⊗n − νI]; d′ = d(1 + q̂·ε·q̂). Fasta, kända ospända gitterparametrar behövs för att skilja spänning från geometri.</p><p>Numeriska data används linjärt. Bildfiler läses som pixelvärden utan inverse färgkarta eller automatisk gammakorrektion. Färglagda/logaritmerade bilder ger inte kvantitativ textur. Bilder reduceras genom blockmedelvärden till högst cirka 640 pixlar per sida för beräkningen; koordinater och pixelstorlek anges fortfarande i originalbildens skala.</p><p>Skala ≥ 0 och valfri konstant bakgrund löses med linjär minsta kvadrat. Differensen beräknas i dataenheter efter denna gemensamma skalning. RMSE = √medel((Iexp−Icalc)²); R = √(Σ residual² / Σ Iexp²), utan statistiska vikter. Anpassningen är en prototyp, utan osäkerhetsanalys eller instrumentkalibrering. Fläckar, detektorlutning, flera faser, radiell distorsion och varierande bakgrund kan ge kvarvarande residualer; dessa ska inte tolkas som enbart textur eller spänning.</p><p>Originalversion: <a href="TiN_live.html">TiN live</a>. Filer hanteras lokalt i webbläsaren.</p></div></details>
+</div>
+</main><footer>Debye Lab · jämför modellen med data, granska alltid residualen.</footer>
+</body></html>
