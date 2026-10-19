@@ -72,3 +72,29 @@ test('browser: full synthetic fit, exports, WC image, raw imports, error handlin
   assert.deepEqual(errors,[]);
  } finally {await browser.close();await new Promise(r=>server.close(r));}
 });
+
+test('standalone HTML works offline with no companion assets or network requests', {timeout:60000},async()=>{
+ const executable=process.env.CHROMIUM_PATH||(fs.existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),browser=await chromium.launch({executablePath:executable,headless:true,args:['--no-sandbox']});
+ try{
+  const context=await browser.newContext({offline:true,viewport:{width:1366,height:768}}),page=await context.newPage(),errors=[],requests=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});
+  const standalone=fs.readFileSync(path.join(root,'Debye_lab.html'),'utf8');
+  assert.equal(standalone,fs.readFileSync(path.join(root,'index.html'),'utf8'));
+  await page.setContent(standalone);await page.waitForFunction(()=>window.DebyeLab?.state.last);
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.body).colorScheme),'dark');
+  assert.match(await page.locator('html').getAttribute('data-app-version'),/^[0-9a-f]{10}$/);
+  assert.equal(await page.locator('script[src],link[rel=stylesheet]').count(),0);
+  for(const view of ['calculated','difference','experiment']){await page.click('[data-image-view="'+view+'"]');assert.equal(await page.locator('[data-view-panel="'+view+'"]').isVisible(),true);}
+  await page.click('#wcExample');await page.waitForFunction(()=>!DebyeLab.state.busy);
+  assert.equal(await page.evaluate(()=>DebyeLab.state.image.originalWidth),2048);
+  assert.equal(await page.evaluate(()=>DebyeLab.state.image.name),'WC – din inbäddade JPEG');
+  await page.click('[data-control-tab=geometry]');
+  const before=await page.evaluate(()=>DebyeLab.state.last.revision);
+  await page.locator('#betaSlider').evaluate(el=>{el.value='.01';el.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.waitForFunction(revision=>DebyeLab.state.last?.revision>revision,before);
+  assert.equal(await page.evaluate(()=>DebyeLab.state.last.p.beta),.01);
+  await page.click('#openDetails');assert.equal(await page.locator('#detailsDialog').isVisible(),true);await page.keyboard.press('Escape');
+  assert.deepEqual(requests,[]);assert.deepEqual(errors,[]);
+  console.log('Offline standalone verified:',await page.locator('html').getAttribute('data-app-version'));
+ }finally{await browser.close();}
+});

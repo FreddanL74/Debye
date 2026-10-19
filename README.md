@@ -1,6 +1,6 @@
 # Debye Lab
 
-En lokal webbapp som kombinerar TiN-simuleringens textur/spänning med experimentell ringgeometri och CIF-import. Originalet finns kvar oförändrat i `TiN_live.html`. Den nya appen startar från **`index.html`** och kräver ingen serverbackend, inga nycklar och inga externa skript.
+En lokal webbapp som kombinerar TiN-simuleringens textur/spänning med experimentell ringgeometri och CIF-import. Originalet finns kvar oförändrat i `TiN_live.html`. Den nya appen startar från **`index.html`** eller **`Debye_lab.html`**. Båda är kompletta HTML-filer med CSS, JavaScript och WC-exempelbild inbyggda. Ingen serverbackend, inga nycklar och inga externa skript krävs.
 
 ## Användning
 
@@ -8,7 +8,7 @@ Gränssnittet är mörkt och anpassat för ett webbläsarfönster. Endast en dif
 
 Vänsterpanelen har flikarna **Data**, **Geometri**, **Textur** och **Anpassa**. Utförliga resultat och radialprofiler öppnas med **Resultat & profiler**, och modellbeskrivning/dataformat med **Hjälp**. Huvudvyn och samtliga inställningsflikar ryms utan skrollning vid testade skrivbordsstorlekar 1366 × 768, 1280 × 720 och 1024 × 768. På mindre skärmar kan inställningspanelen skrollas separat; själva bildfönstret ligger kvar inom vyn.
 
-Öppna `index.html` tillsammans med `app.js`, `debye-core.js`, `style.css` och mappen `examples` från samma nedladdade repository. Alternativt: publicera repositoryts `main` och rotkatalog med GitHub Pages; `index.html` blir startsidan. `npm start` startar en lokal statisk utvecklingsserver (Python 3 krävs).
+Ladda ned **`Debye_lab.html`** och öppna den i en vanlig webbläsare. Filen fungerar även utan internet och behöver inga andra filer. En GitHub-kodvy eller en förhandsvisning som blockerar JavaScript kör inte appen. Alternativt: publicera repositoryts `main` och rotkatalog med GitHub Pages; `index.html` blir startsidan. `npm start` startar en lokal statisk utvecklingsserver (Python 3 krävs).
 
 Appen startar med **syntetiska TiN-data med känt facit**, inte med experimentdata. Knappen **Öppna din WC-bild** läser JPEG-bilden som extraherats oförändrad ur den uppladdade `WC_interaktiv_radial_ickelinjaritet.html`. WC-exemplets pixelstorlek 0,1 mm är ett antagande. Ändra den till detektorns verkliga värde innan avståndet i mm tolkas. För WC används användarens värden **E = 450 000 MPa, ν = 0,25** och våglängdsintervall **0,17–0,20 Å**. Startvåglängden är 0,20 Å; kalibreringen håller sig inom intervallet.
 
@@ -54,7 +54,7 @@ Centrum uppskattas från gradienternas skärning och förfinas med 180° bildsym
 
 ## Utveckling och verifiering
 
-Ingen installation behövs för appen. Node 20+ behövs för testerna:
+Ingen installation behövs för appen. Källfilerna är `page.template.html`, `style.css`, `debye-core.js` och `app.js`. Efter ändringar körs `npm run build` för att uppdatera båda självständiga HTML-filerna. Bygget bäddar även in WC-bilden och ger filerna en synlig versionskod. Node 20+ behövs för bygget och testerna:
 
 ```sh
 npm test
