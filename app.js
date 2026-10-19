@@ -1,6 +1,11 @@
 /* UI for Debye Lab. User file contents are data, never HTML or code. */
 'use strict';
 const D=window.Debye,$=id=>document.getElementById(id);
+const thermalStops=[[5,3,14],[41,16,82],[126,30,119],[211,74,84],[252,156,55],[252,247,186]];
+function thermalColor(t){const x=D.clamp(t,0,1)*(thermalStops.length-1),i=Math.min(thermalStops.length-2,Math.floor(x)),f=x-i;return thermalStops[i].map((v,c)=>Math.round(v*(1-f)+thermalStops[i+1][c]*f));}
+function selectControlPanel(name){for(const el of document.querySelectorAll('[data-control-panel]'))el.hidden=el.dataset.controlPanel!==name;for(const el of document.querySelectorAll('[data-control-tab]'))el.setAttribute('aria-pressed',String(el.dataset.controlTab===name));}
+function selectImageView(name){for(const el of document.querySelectorAll('[data-view-panel]'))el.hidden=el.dataset.viewPanel!==name;for(const el of document.querySelectorAll('[data-image-view]'))el.setAttribute('aria-pressed',String(el.dataset.imageView===name));$('thermalLegend').hidden=name==='difference';$('differenceLegend').hidden=name!=='difference';$('viewCaption').textContent={experiment:'Experiment · klicka för centrum · cyan = referensringar',calculated:'Beräknat · samma intensitetsskala som experimentet',difference:'Experiment − beräknat · vitt = noll · maskerat = grått'}[name];}
+
 const fields=['cx','cy','pixel','distance','lambda','beta','r','textureAngle','stress','stressAngle','E','nu','fwhm','qmax','maskInner','maskOuter'];
 let image=null,crystal=null,cifText=D.TIN_CIF,cifName='TiN (idealiserad full cell)',last=null,ringsCache=null,busy=false,cancelled=false,renderTimer=null,revision=0,fitRecord=null;
 const defaults={cx:191.5,cy:191.5,pixel:.4,distance:240,beta:0,lambda:12.3984198433/80,r:1,textureAngle:90,stress:0,stressAngle:0,E:450000,nu:.2,fwhm:.06,qmax:9,maskInner:18,maskOuter:270};
@@ -41,7 +46,7 @@ function reduceImage(raw){
   return {width:w,height:h,data:out,bin,originalWidth:width,originalHeight:height};
 }
 function installImage(raw,meta={}){
-  const reduced=reduceImage(raw);image={...reduced,...meta};revision++;last=null;fitRecord=null;
+  const reduced=reduceImage(raw);image={...reduced,...meta};document.documentElement.style.setProperty('--image-aspect',String(image.width/image.height));revision++;last=null;fitRecord=null;
   const bin=image.bin;$('dataInfo').textContent=`${image.name||'Data'} · original ${image.originalWidth} × ${image.originalHeight} px · beräkning ${image.width} × ${image.height} px · blockmedel ${bin} × ${bin}. Intensiteter i ${image.units||'dataenheter'}.`;
   $('dataWarning').textContent=image.warning||'';$('truth').textContent='';
   const size=Math.min(image.originalWidth,image.originalHeight);setFields({cx:(image.originalWidth-1)/2,cy:(image.originalHeight-1)/2,maskInner:size*.04,maskOuter:Math.hypot(image.originalWidth,image.originalHeight)/2});
@@ -60,9 +65,9 @@ function maxData(){let max=0;for(const v of image.data)if(Number.isFinite(v))max
 function drawArray(id,values,residual=false){
   const cv=$(id);cv.width=image.width;cv.height=image.height;const ctx=cv.getContext('2d'),im=ctx.createImageData(image.width,image.height),max=maxData(),limit=max*(+$('residualRange').value||30)/100,mode=$('displayScale').value;
   for(let i=0;i<values.length;i++){
-    let rgb;if(!last.mask[i]||!Number.isFinite(values[i]))rgb=[185,192,201];
+    let rgb;if(!last.mask[i]||!Number.isFinite(values[i]))rgb=[50,61,79];
     else if(residual){const t=D.clamp(values[i]/limit,-1,1),a=Math.abs(t);rgb=t<0?[255-221*a,255-154*a,255-58*a]:[255-58*a,255-200*a,255-200*a];}
-    else{let t=D.clamp(values[i]/max,0,1);t=mode==='sqrt'?Math.sqrt(t):mode==='log'?Math.log1p(99*t)/Math.log(100):t;const c=255*(1-t);rgb=[c,c,c];}
+    else{let t=D.clamp(values[i]/max,0,1);t=mode==='sqrt'?Math.sqrt(t):mode==='log'?Math.log1p(99*t)/Math.log(100):t;rgb=thermalColor(t);}
     im.data.set([...rgb,255],i*4);
   }ctx.putImageData(im,0,0);
 }
@@ -82,15 +87,15 @@ function drawProfiles(){
   const {angles,exp,calc}=radialProfiles(),cv=$('profiles'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height,L=65,R=W-20,T=20,B=H-45;
   ctx.clearRect(0,0,W,H);let max=0,min=0;const residual=Float64Array.from(exp,(v,i)=>v-calc[i]);for(const a of [exp,calc,residual])for(const v of a)if(Number.isFinite(v)){max=Math.max(max,v);min=Math.min(min,v);}if(max===min)max++;
   const x=i=>L+i/(angles.length-1)*(R-L),y=v=>B-(v-min)/(max-min)*(B-T);
-  ctx.font='13px system-ui';ctx.fillStyle='#65748a';ctx.strokeStyle='#dce3ec';
+  ctx.font='13px system-ui';ctx.fillStyle='#98a9bf';ctx.strokeStyle='#2a3a50';
   for(let j=0;j<=5;j++){let xx=L+j/5*(R-L),v=angles[angles.length-1]*j/5;ctx.beginPath();ctx.moveTo(xx,T);ctx.lineTo(xx,B);ctx.stroke();ctx.fillText(v.toFixed(1),xx-10,H-23);}
-  for(const [data,color]of [[exp,'#27384a'],[calc,'#0799a3'],[residual,'#c84343']]){ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.beginPath();let connected=false;for(let i=0;i<data.length;i++){if(!Number.isFinite(data[i])){connected=false;continue;}if(!connected)ctx.moveTo(x(i),y(data[i]));else ctx.lineTo(x(i),y(data[i]));connected=true;}ctx.stroke();}
-  ctx.fillStyle='#65748a';ctx.fillText('2θ (°)',W/2,H-3);ctx.fillText(max.toPrecision(3),4,T+8);ctx.fillText(min.toPrecision(3),4,B);ctx.fillText(image.units||'I',4,12);
+  for(const [data,color]of [[exp,'#f4bf72'],[calc,'#40cfca'],[residual,'#f17894']]){ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.beginPath();let connected=false;for(let i=0;i<data.length;i++){if(!Number.isFinite(data[i])){connected=false;continue;}if(!connected)ctx.moveTo(x(i),y(data[i]));else ctx.lineTo(x(i),y(data[i]));connected=true;}ctx.stroke();}
+  ctx.fillStyle='#98a9bf';ctx.fillText('2θ (°)',W/2,H-3);ctx.fillText(max.toPrecision(3),4,T+8);ctx.fillText(min.toPrecision(3),4,B);ctx.fillText(image.units||'I',4,12);
 }
 function draw(){if(!last)return;drawArray('experiment',image.data);drawArray('calculated',last.calculated);drawArray('difference',last.residual,true);drawOverlay();drawProfiles();}
 function showResults(){
   const p=externalParams(last.p),f=last.fit,metrics=[['March–Dollase r',p.r.toFixed(4)],['Spänning σ',p.stress.toFixed(1)+' MPa'],['Spänningsriktning',Math.abs(p.stress)<1?'Ej bestämd':((p.stressAngle%180+180)%180).toFixed(1)+'°'],['Texturriktning',Math.abs(p.r-1)<.002?'Ej bestämd':((p.textureAngle%180+180)%180).toFixed(1)+'°'],['Centrum x / y',p.cx.toFixed(2)+' / '+p.cy.toFixed(2)],['Avstånd / λ',p.distance.toFixed(3)+' mm / '+p.lambda.toFixed(6)+' Å'],['RMSE',f.rmse.toPrecision(4)],['R (oviktad)',(f.rwp*100).toFixed(3)+' %'],['Skala / bakgrund',f.a.toPrecision(4)+' / '+f.b.toPrecision(4)]];
-  $('results').replaceChildren(...metrics.map(([label,value])=>{const el=document.createElement('div');el.className='metric';const strong=document.createElement('strong'),span=document.createElement('span');strong.textContent=value;span.textContent=label;el.append(strong,span);return el;}));
+  $('results').replaceChildren(...metrics.map(([label,value])=>{const el=document.createElement('div');el.className='metric';const strong=document.createElement('strong'),span=document.createElement('span');strong.textContent=value;span.textContent=label;el.append(strong,span);return el;}));$('detailedResults').replaceChildren(...Array.from($('results').children,el=>el.cloneNode(true)));
 }
 function setBusy(value){busy=value;for(const el of document.querySelectorAll('#controls input,#controls select,#controls button,#calculate'))el.disabled=value;$('cancel').disabled=!value;}
 async function runTask(fn){if(busy)return;clearTimeout(renderTimer);renderTimer=null;cancelled=false;invalidate();setBusy(true);await new Promise(r=>setTimeout(r,20));try{await fn();}catch(e){error(e);}finally{setBusy(false);}}
@@ -137,6 +142,12 @@ function synthetic(){
 function download(name,text,type='text/plain'){
   const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
+for(const el of document.querySelectorAll('[data-control-tab]'))el.onclick=()=>selectControlPanel(el.dataset.controlTab);
+for(const el of document.querySelectorAll('[data-image-view]'))el.onclick=()=>selectImageView(el.dataset.imageView);
+$('openDetails').onclick=()=>$('detailsDialog').showModal();
+$('openHelp').onclick=()=>$('helpDialog').showModal();
+const workflowHelp=document.createElement('section');workflowHelp.className='card prose';const helpTitle=document.createElement('h2');helpTitle.textContent='Dataformat och arbetsflöde';workflowHelp.append(helpTitle);for(const el of document.querySelectorAll('.control-panel>p.hint:not([id])'))workflowHelp.append(el.cloneNode(true));$('helpDialog').append(workflowHelp);
+for(const el of document.querySelectorAll('[data-close-dialog]'))el.onclick=()=>$(el.dataset.closeDialog).close();
 for(const el of document.querySelectorAll('[data-param]'))el.addEventListener('change',requestRender);
 for(const slider of document.querySelectorAll('[data-slider]'))slider.addEventListener('input',()=>{
   $(slider.dataset.slider).value=slider.value;requestRender();
